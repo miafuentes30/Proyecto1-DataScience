@@ -513,3 +513,95 @@ _PALABRAS_TIPO_INSTITUCION = {
     "PRIVADA", "COOPERATIVA", "OFICIAL", "PARTICULAR", "COLEGIO.",
 }
 
+
+def _clave_nombre_institucion(valor: object) -> str:
+    """Nombre del establecimiento sin palabras de tipo de institucion, para
+    reconocer candidatos a duplicado parcial aunque uno diga 'INSTITUTO X'
+    y otro solo 'X'. Solo se usa para DETECTAR (marcar para revision);
+    nunca para fusionar o sobrescribir el nombre original."""
+    clave = comparison_key(valor) or ""
+    palabras = [p for p in clave.split() if p not in _PALABRAS_TIPO_INSTITUCION]
+    return " ".join(palabras)
+
+
+def _clave_similitud(fila: pd.Series) -> str:
+    partes = [
+        _clave_nombre_institucion(fila.get("ESTABLECIMIENTO")),
+        comparison_key(fila.get("MUNICIPIO")) or "",
+        comparison_key(fila.get("DIRECCION")) or "",
+    ]
+    return " ".join(p for p in partes if p)
+
+
+def detectar_duplicados_parciales(
+    data: pd.DataFrame, log: RegistroLog, umbral: int = 90,
+) -> pd.Series:
+    """Compara cada establecimiento contra los demas DEL MISMO MUNICIPIO
+    (para no comparar contra los ~11,800 registros completos) usando
+    similitud de cadenas (rapidfuzz.token_sort_ratio) sobre
+    ESTABLECIMIENTO (sin palabras de tipo de institucion como INSTITUTO/
+    COLEGIO/ESCUELA, ver `_clave_nombre_institucion`) + DIRECCION. Asi se
+    reconoce que 'INSTITUTO SAN CARLOS' y 'COLEGIO SAN CARLOS' pueden ser
+    el mismo establecimiento aunque el token de tipo sea distinto. Si la
+    similitud >= umbral, se marca el par como posible duplicado parcial
+    (columna GRUPO_DUPLICADO_PARCIAL).
+
+    No se fusiona ni elimina nada: solo se asigna un identificador de
+    grupo para que un analista revise manualmente los casos marcados,
+    tal como exige la guia."""
+    grupo = pd.Series(pd.NA, index=data.index, dtype="Int64")
+
+    if not _RAPIDFUZZ_DISPONIBLE:
+        log.anota(
+            "ESTABLECIMIENTO", "Posibles duplicados parciales",
+            "rapidfuzz no disponible: paso omitido",
+            0, "N/A",
+        )
+        return grupo
+
+    claves = data.apply(_clave_similitud, axis=1)
+    siguiente_grupo_id = 1
+    pares_marcados = 0
+
+    for municipio, indices in data.groupby(data["MUNICIPIO"].fillna("__SIN_MUNICIPIO__")).groups.items():
+        indices = list(indices)
+        vistos_en_grupo: dict[int, int] = {}
+        for i in range(len(indices)):
+            idx_a = indices[i]
+            clave_a = claves.at[idx_a]
+            if not clave_a:
+                continue
+            for j in range(i + 1, len(indices)):
+                idx_b = indices[j]
+                clave_b = claves.at[idx_b]
+                if not clave_b:
+                    continue
+                similitud = fuzz.token_sort_ratio(clave_a, clave_b)
+                if similitud >= umbral:
+                    grupo_existente = vistos_en_grupo.get(idx_a) or vistos_en_grupo.get(idx_b)
+                    grupo_id = grupo_existente or siguiente_grupo_id
+                    if grupo_existente is None:
+                        siguiente_grupo_id += 1
+                    grupo.at[idx_a] = grupo_id
+                    grupo.at[idx_b] = grupo_id
+                    vistos_en_grupo[idx_a] = grupo_id
+                    vistos_en_grupo[idx_b] = grupo_id
+                    pares_marcados += 1
+
+    if pares_marcados:
+        log.anota(
+            "ESTABLECIMIENTO / DIRECCION", "Posibles duplicados parciales "
+            "(mismo municipio, nombre y direccion muy similares)",
+            f"Comparacion por similitud de cadenas (rapidfuzz "
+            f"token_sort_ratio >= {umbral}) dentro de cada municipio, "
+            "ignorando palabras de tipo de institucion (INSTITUTO/"
+            "COLEGIO/ESCUELA/etc.) al comparar el nombre; se asigna "
+            "GRUPO_DUPLICADO_PARCIAL para revision manual",
+            int(grupo.notna().sum()),
+            "No se fusionan ni eliminan registros automaticamente: dos "
+            "establecimientos legitimos pueden tener nombres parecidos "
+            "(ej. una escuela y su anexo, o dos sedes distintas de una "
+            "misma cadena). Se deja la decision a un analista.",
+        )
+    return grupo
+
