@@ -1,0 +1,116 @@
+RESUMEN DE EJECUCION DEL PIPELINE DE LIMPIEZA
+Establecimientos educativos nivel Diversificado - MINEDUC Guatemala
+======================================================================
+Fecha y hora de ejecucion: 2026-07-20 16:12:42
+
+1. CARGA DE ARCHIVOS
+----------------------------------------------------------------------
+Archivos .xls cargados: 23
+Filas crudas extraidas (todas las fuentes): 11,890
+Filas completamente vacias descartadas: 23
+Registros efectivos antes de limpiar: 11,867
+
+1.1 VALORES FALTANTES POR VARIABLE (antes de limpiar)
+----------------------------------------------------------------------
+Variable          Faltantes  Porcentaje
+AREA                      0       0.00 %
+CODIGO                    0       0.00 %
+DEPARTAMENTAL             0       0.00 %
+DEPARTAMENTO              0       0.00 %
+DIRECCION                85       0.72 %
+DIRECTOR              2,000      16.85 %
+DISTRITO                532       4.48 %
+ESTABLECIMIENTO           5       0.04 %
+JORNADA                   0       0.00 %
+MODALIDAD                 0       0.00 %
+MUNICIPIO                 0       0.00 %
+NIVEL                     0       0.00 %
+PLAN                      0       0.00 %
+SECTOR                    0       0.00 %
+STATUS                    0       0.00 %
+SUPERVISOR              535       4.51 %
+TELEFONO                946       7.97 %
+
+2. LIMPIEZA
+----------------------------------------------------------------------
+Registros despues de limpiar: 9,959
+Diferencia de registros: -1,908 (ver detalle en 'registro_transformaciones.csv'; incluye la eliminacion de filas de establecimiento (8).xls con DEPARTAMENTO='GUATEMALA', ya cubiertas por establecimiento (5).xls)
+Transformaciones distintas documentadas: 13
+Total de registros afectados por alguna transformacion: 28,237
+
+Detalle de transformaciones (variable: problema -> transformacion [registros afectados]):
+  - (fila completa): 'establecimiento (8).xls' trae registros incompletos/duplicados para DEPARTAMENTO='GUATEMALA' (el mismo conjunto de establecimientos ya esta completo en 'establecimiento (5).xls', ahi identificados como 'CIUDAD CAPITAL') -> Se elimina la fila completa (todas sus columnas), no solo el valor de DEPARTAMENTO [1,908 registros]
+  - DISTRITO: Valores faltantes representados como '', '-', 'N/A', etc. -> Unificados a NA real usando el mismo criterio del diagnostico (missing_mask) [426 registros]
+  - DEPARTAMENTO: Nombres sin tilde (ej. TOTONICAPAN, PETEN, QUICHE, SOLOLA) -> Se normaliza a la grafia oficial con tilde usando el catalogo de 22 departamentos [2,025 registros]
+  - DEPARTAMENTO: 'CIUDAD CAPITAL' usado en lugar de 'GUATEMALA' -> NO se unifica automaticamente; se marca en DEPARTAMENTO_REVISAR para decision manual [2,161 registros]
+  - MUNICIPIO: Grafia distinta a la oficial (tildes/mayusculas) -> Se normaliza a la grafia oficial validando contra el municipio correspondiente dentro del mismo departamento [2,376 registros]
+  - MUNICIPIO: No coincide con ningun municipio del departamento indicado -> Se deja el valor original y se marca MUNICIPIO_REVISAR [2,566 registros]
+  - DIRECCION: Mayusculas inconsistentes, espacios extra, NBSP invisible o marcadores de faltante -> Se convierte a mayusculas, se recortan espacios y se convierten marcadores de faltante a NA; las tildes SI se conservan (no se tocan, solo la capitalizacion) [16 registros]
+  - DIRECTOR: Mayusculas inconsistentes, espacios extra, NBSP invisible o marcadores de faltante -> Se convierte a mayusculas, se recortan espacios y se convierten marcadores de faltante a NA; las tildes SI se conservan (no se tocan, solo la capitalizacion) [251 registros]
+  - TELEFONO: Multiples numeros por celda y separadores inconsistentes (comas, guiones, 'Y', 'FAX', 'EXT') -> Se extraen solo los digitos de cada numero y se reescriben separados por ' / ', descartando palabras de relleno [156 registros]
+  - TELEFONO: Numero con longitud distinta a 8 digitos, o sin digitos reconocibles -> Se deja el valor y se marca TELEFONO_REVISAR [92 registros]
+  - MODALIDAD: Grafia sin tilde/dieresis: 'MONOLINGUE' -> Reemplazado por la forma ortografica correcta 'MONOLINGÜE' [9,494 registros]
+  - MODALIDAD: Grafia sin tilde/dieresis: 'BILINGUE' -> Reemplazado por la forma ortografica correcta 'BILINGÜE' [465 registros]
+  - PLAN: Formato inconsistente en parentesis (ej. DIARIO(REGULAR)) -> Se agrega un espacio antes del parentesis: 'DIARIO (REGULAR)' [6,301 registros]
+
+2.1 VALORES FALTANTES POR VARIABLE (despues de limpiar)
+----------------------------------------------------------------------
+Variable          Faltantes  Porcentaje
+AREA                      0       0.00 %
+CODIGO                    0       0.00 %
+DEPARTAMENTAL             0       0.00 %
+DEPARTAMENTO              0       0.00 %
+DIRECCION                82       0.82 %
+DIRECTOR              1,666      16.73 %
+DISTRITO                426       4.28 %
+ESTABLECIMIENTO           4       0.04 %
+JORNADA                   0       0.00 %
+MODALIDAD                 0       0.00 %
+MUNICIPIO                 0       0.00 %
+NIVEL                     0       0.00 %
+PLAN                      0       0.00 %
+SECTOR                    0       0.00 %
+STATUS                    0       0.00 %
+SUPERVISOR              429       4.31 %
+TELEFONO                815       8.18 %
+
+3. RESULTADOS DE VALIDACION (paso 7)
+----------------------------------------------------------------------
+  [PASA] No existen registros duplicados exactos
+      cantidad: 0 | 0 filas participan en un duplicado exacto
+  [PASA] CODIGO es unico por establecimiento
+      cantidad: 0 | 0 filas (0 codigos distintos) quedaron marcadas en CODIGO_DUPLICADO (documentadas, pendientes de decision manual sobre cual version conservar)
+  [PASA] No existen espacios al inicio/final de los textos
+      cantidad: 0 | 0 celdas con espacios sobrantes en 5 variables de texto
+  [FALLAS DETECTADAS] Los telefonos tienen formato consistente (8 digitos, multiples separados por ' / ')
+      cantidad: 92 | 92 valores no cumplen el patron esperado
+  [PASA] Los departamentos pertenecen al catalogo oficial (22)
+      cantidad: 0 | 0 valores fuera del catalogo y sin marcar para revision (adicionalmente hay 2161 marcados en DEPARTAMENTO_REVISAR, pendientes de decision manual)
+  [PASA] Los municipios pertenecen al departamento indicado
+      cantidad: 0 | 2566 municipios quedaron marcados en MUNICIPIO_REVISAR (documentados, pendientes de decision manual)
+  [PASA] Todas las variables tienen el tipo de dato esperado (string)
+      cantidad: 0 | Columnas con tipo inesperado: []
+  [PASA] No existen categorias duplicadas por diferencias de escritura
+      cantidad: 0 | OK
+
+4. INFORME DE CALIDAD ANTES / DESPUES (paso 8)
+----------------------------------------------------------------------
+  Registros: antes = 11867 | despues = 9959
+  Variables: antes = 17 | despues = 22
+  Valores faltantes: antes = 4,103 (2.03%) | despues = 3,422 (2.02%)
+  Variables con NA: antes = 6 | despues = 6
+  Duplicados exactos: antes = 0 | despues = 0
+  Registros con CODIGO duplicado (pendiente revision): antes = No evaluado antes de limpiar | despues = 0
+  Posibles duplicados (parciales): antes = No evaluado antes de limpiar | despues = 0
+  Variables con formato inconsistente: antes = 3 | despues = 1
+  Variables con tipo incorrecto: antes = 17 (todo string sin declarar) | despues = 0
+  Categorias inconsistentes (grupos de variantes): antes = 1901 | despues = 0
+  Errores corregidos (transformaciones aplicadas): antes = N/A | despues = 28237
+
+======================================================================
+Archivos generados en esta corrida (carpeta outputs/):
+  - datos_limpios.csv
+  - registro_transformaciones.csv
+  - resultados_validacion.csv
+  - informe_calidad_antes_despues.csv
+  - resumen_ejecucion.txt (este archivo)

@@ -1,0 +1,9 @@
+﻿prueba,resultado,cantidad,detalle
+No existen registros duplicados exactos,PASA,0,0 filas participan en un duplicado exacto
+CODIGO es unico por establecimiento,PASA,0,"0 filas (0 codigos distintos) quedaron marcadas en CODIGO_DUPLICADO (documentadas, pendientes de decision manual sobre cual version conservar)"
+No existen espacios al inicio/final de los textos,PASA,0,0 celdas con espacios sobrantes en 5 variables de texto
+"Los telefonos tienen formato consistente (8 digitos, multiples separados por ' / ')",FALLAS DETECTADAS,92,92 valores no cumplen el patron esperado
+Los departamentos pertenecen al catalogo oficial (22),PASA,0,"0 valores fuera del catalogo y sin marcar para revision (adicionalmente hay 2161 marcados en DEPARTAMENTO_REVISAR, pendientes de decision manual)"
+Los municipios pertenecen al departamento indicado,PASA,0,"2566 municipios quedaron marcados en MUNICIPIO_REVISAR (documentados, pendientes de decision manual)"
+Todas las variables tienen el tipo de dato esperado (string),PASA,0,Columnas con tipo inesperado: []
+No existen categorias duplicadas por diferencias de escritura,PASA,0,OK

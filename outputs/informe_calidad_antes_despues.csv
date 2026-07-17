@@ -1,0 +1,12 @@
+﻿metrica,antes,despues
+Registros,11867,9959
+Variables,17,22
+Valores faltantes,"4,103 (2.03%)","3,422 (2.02%)"
+Variables con NA,6,6
+Duplicados exactos,0,0
+Registros con CODIGO duplicado (pendiente revision),No evaluado antes de limpiar,0
+Posibles duplicados (parciales),No evaluado antes de limpiar,0
+Variables con formato inconsistente,3,1
+Variables con tipo incorrecto,17 (todo string sin declarar),0
+Categorias inconsistentes (grupos de variantes),1901,0
+Errores corregidos (transformaciones aplicadas),N/A,28237
