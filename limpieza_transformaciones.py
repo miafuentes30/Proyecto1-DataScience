@@ -605,3 +605,79 @@ def detectar_duplicados_parciales(
         )
     return grupo
 
+
+# ---------------------------------------------------------------------------
+# Orquestador principal
+# ---------------------------------------------------------------------------
+
+def limpiar_dataset(data: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Aplica la limpieza completa (paso 5) sobre el DataFrame "efectivo"
+    (ya sin filas completamente vacias) y devuelve (dataset_limpio,
+    log_transformaciones_df)."""
+    log = RegistroLog()
+
+    # Eliminacion puntual de fuente (debe ir antes de todo lo demas, y
+    # usa _ARCHIVO_ORIGEN todavia crudo).
+    data = eliminar_filas_departamento_guatemala_archivo8(data, log)
+
+    limpio = pd.DataFrame(index=data.index)
+
+    # Columnas de trazabilidad se conservan tal cual
+    for col in ("_ARCHIVO_ORIGEN", "_FILA_ORIGEN"):
+        if col in data.columns:
+            limpio[col] = data[col]
+
+    limpio["CODIGO"] = limpiar_codigo(data["CODIGO"], log)
+    limpio["CODIGO_DUPLICADO"] = detectar_duplicados_por_codigo(data, log)
+    limpio["DISTRITO"] = limpiar_distrito(data["DISTRITO"], log)
+
+    depto_limpio, depto_revisar = limpiar_departamento(data["DEPARTAMENTO"], log)
+    limpio["DEPARTAMENTO"] = depto_limpio
+    limpio["DEPARTAMENTO_REVISAR"] = depto_revisar
+
+    municipio_limpio, municipio_revisar = limpiar_municipio(depto_limpio, data["MUNICIPIO"], log)
+    limpio["MUNICIPIO"] = municipio_limpio
+    limpio["MUNICIPIO_REVISAR"] = municipio_revisar
+
+    limpio["ESTABLECIMIENTO"] = limpiar_texto_libre(data["ESTABLECIMIENTO"], "ESTABLECIMIENTO", log)
+    limpio["DIRECCION"] = limpiar_texto_libre(data["DIRECCION"], "DIRECCION", log)
+    limpio["SUPERVISOR"] = limpiar_texto_libre(data["SUPERVISOR"], "SUPERVISOR", log)
+    limpio["DIRECTOR"] = limpiar_texto_libre(data["DIRECTOR"], "DIRECTOR", log)
+
+    telefono_limpio, telefono_revisar = limpiar_telefono(data["TELEFONO"], log)
+    limpio["TELEFONO"] = telefono_limpio
+    limpio["TELEFONO_REVISAR"] = telefono_revisar
+
+    limpio["NIVEL"] = limpiar_categorica(data["NIVEL"], "NIVEL", log)
+    limpio["SECTOR"] = limpiar_categorica(data["SECTOR"], "SECTOR", log)
+    limpio["AREA"] = limpiar_categorica(data["AREA"], "AREA", log)
+    limpio["STATUS"] = limpiar_categorica(data["STATUS"], "STATUS", log)
+    limpio["MODALIDAD"] = limpiar_categorica(
+        data["MODALIDAD"], "MODALIDAD", log,
+        correcciones_ortograficas={
+            "MONOLINGUE": "MONOLINGÜE",
+            "BILINGUE": "BILINGÜE",
+        },
+    )
+    limpio["JORNADA"] = limpiar_categorica(data["JORNADA"], "JORNADA", log)
+
+    plan_limpio = limpiar_categorica(data["PLAN"], "PLAN", log)
+    afectados_plan = int((plan_limpio.str.contains(r"\(", na=False) &
+                          ~plan_limpio.str.contains(r" \(", na=False)).sum())
+    plan_limpio = plan_limpio.str.replace(r"(?<! )\(", " (", regex=True)
+    log.anota(
+        "PLAN", "Formato inconsistente en parentesis (ej. DIARIO(REGULAR))",
+        "Se agrega un espacio antes del parentesis: 'DIARIO (REGULAR)'",
+        afectados_plan,
+        "Es solo una diferencia de formato tipografico, no una "
+        "categoria distinta; unificarlo hace mas legible el catalogo "
+        "de planes sin cambiar su significado.",
+    )
+    limpio["PLAN"] = plan_limpio
+
+    limpio["DEPARTAMENTAL"] = limpiar_categorica(data["DEPARTAMENTAL"], "DEPARTAMENTAL", log)
+
+    grupo_duplicado = detectar_duplicados_parciales(limpio, log)
+    limpio["GRUPO_DUPLICADO_PARCIAL"] = grupo_duplicado
+
+    return limpio, log.to_dataframe()
