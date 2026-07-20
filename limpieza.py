@@ -228,3 +228,111 @@ def load_all_files(raw_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     combined = pd.concat(frames, ignore_index=True)
     return combined, pd.DataFrame(metadata)
 
+
+def save_summary(
+    effective_data: pd.DataFrame,
+    metadata: pd.DataFrame,
+    diagnosis: pd.DataFrame,
+    exact_duplicates: pd.DataFrame,
+    variants: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    original_columns = [column for column in effective_data.columns if not column.startswith("_")]
+    total_cells = len(effective_data) * len(original_columns)
+    total_missing = sum(int(missing_mask(effective_data[column]).sum()) for column in original_columns)
+    missing_pct = (total_missing / total_cells * 100) if total_cells else 0.0
+
+    lines = [
+        "DIAGNÓSTICO INICIAL DEL CONJUNTO DE DATOS",
+        "=" * 44,
+        f"Archivos cargados: {len(metadata):,}",
+        f"Filas crudas extraídas: {int(metadata['filas_crudas'].sum()):,}",
+        f"Filas completamente vacías: {int(metadata['filas_completamente_vacias'].sum()):,}",
+        f"Registros efectivos: {len(effective_data):,}",
+        f"Variables originales: {len(original_columns):,}",
+        f"Valores faltantes o equivalentes: {total_missing:,} ({missing_pct:.2f}%)",
+        f"Variables con al menos un faltante: {int((diagnosis['faltantes'] > 0).sum()):,}",
+        f"Registros involucrados en duplicados exactos: {len(exact_duplicates):,}",
+        f"Grupos de posibles variantes de escritura: {len(variants):,}",
+        "",
+        "Nota: _ARCHIVO_ORIGEN y _FILA_ORIGEN son variables técnicas de trazabilidad",
+        "y no se cuentan dentro de las variables originales del conjunto.",
+        "",
+        "5.1 VALORES FALTANTES POR VARIABLE",
+        "-" * 44,
+    ]
+
+    tabla = diagnosis[["variable", "faltantes", "porcentaje_faltantes"]].sort_values("variable")
+    ancho_variable = max(len("Variable"), tabla["variable"].str.len().max())
+    lines.append(f"{'Variable':<{ancho_variable}}  {'Faltantes':>10}  {'Porcentaje':>10}")
+    for _, fila in tabla.iterrows():
+        lines.append(
+            f"{fila['variable']:<{ancho_variable}}  {fila['faltantes']:>10,}  "
+            f"{fila['porcentaje_faltantes']:>9.2f} %"
+        )
+
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def main() -> None:
+    PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    combined, metadata = load_all_files(RAW_DIR)
+    original_columns = [column for column in combined.columns if not column.startswith("_")]
+
+    empty_rows = is_fully_empty_row(combined[original_columns])
+    effective = combined.loc[~empty_rows].copy().reset_index(drop=True)
+
+    diagnosis = build_variable_diagnosis(effective[original_columns])
+    variants = build_text_variants(effective[original_columns])
+
+    duplicate_mask = effective.duplicated(subset=original_columns, keep=False)
+    exact_duplicates = effective.loc[duplicate_mask].sort_values(original_columns).copy()
+
+    combined.to_csv(
+        OUTPUTS_DIR / "datos_crudos_unificados_con_origen.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+    effective.to_csv(
+        OUTPUTS_DIR / "datos_crudos_efectivos_con_origen.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+    metadata.to_csv(
+        OUTPUTS_DIR / "archivos_cargados.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+    diagnosis.to_csv(
+        OUTPUTS_DIR / "diagnostico_variables.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+    exact_duplicates.to_csv(
+        OUTPUTS_DIR / "duplicados_exactos.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+    variants.to_csv(
+        OUTPUTS_DIR / "posibles_variantes_texto.csv",
+        index=False,
+        encoding="utf-8-sig",
+    )
+
+    save_summary(
+        effective_data=effective,
+        metadata=metadata,
+        diagnosis=diagnosis,
+        exact_duplicates=exact_duplicates,
+        variants=variants,
+        output_path=OUTPUTS_DIR / "resumen_diagnostico.txt",
+    )
+
+    print("\nDiagnóstico completado.")
+    print(f"Revisa los resultados en: {OUTPUTS_DIR}")
+
+
+if __name__ == "__main__":
+    main()
